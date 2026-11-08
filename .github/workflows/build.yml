@@ -1,0 +1,52 @@
+name: Build APK from ZIP (32-bit + 64-bit)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Сначала распаковываем архив (лежит в корне репозитория)
+      - name: Unzip project
+        run: |
+          unzip -q -o GeoSearch.zip
+          ls -la GeoSearch
+
+      # 2. Только после этого начинается подготовка и сборка
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Create debug keystore
+        run: |
+          mkdir -p ~/.android
+          [ -f ~/.android/debug.keystore ] || keytool -genkeypair -v \
+            -keystore ~/.android/debug.keystore -storepass android \
+            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Build 32-bit and 64-bit APKs
+        working-directory: GeoSearch
+        run: gradle assembleArm32Release assembleArm64Release --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GeoSearch-32bit
+          path: GeoSearch/app/build/outputs/apk/arm32/release/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GeoSearch-64bit
+          path: GeoSearch/app/build/outputs/apk/arm64/release/*.apk
